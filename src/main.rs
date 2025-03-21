@@ -6,8 +6,19 @@ fn main() {
     use self::schema::posts::dsl::*;
     let connection = &mut establish_connection();
 
+    diesel::insert_into(posts)
+        .values(NewPost {
+            title: "Hello, world! 2",
+            body: "This is my second post!",
+            slug: "hello-world-2",
+        })
+        .execute(connection)
+        .expect("Error saving new post");
+
     let results = posts
         .select(Post::as_select())
+        .limit(1)
+        .filter(body.is_not(""))
         .load(connection)
         .expect("Error loading posts");
 

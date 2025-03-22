@@ -19,6 +19,7 @@ fn main() {
         .select(Post::as_select())
         .limit(1)
         .order(id)
+        // Get not empty body posts
         .filter(body.is_not(""))
         .load(connection)
         .expect("Error loading posts");

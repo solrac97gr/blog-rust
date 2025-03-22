@@ -18,6 +18,7 @@ fn main() {
     let results = posts
         .select(Post::as_select())
         .limit(1)
+        .order(id)
         .filter(body.is_not(""))
         .load(connection)
         .expect("Error loading posts");

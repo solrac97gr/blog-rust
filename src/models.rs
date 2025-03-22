@@ -10,6 +10,14 @@ pub struct Post {
     pub body: String,
 }
 
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::posts)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub struct PostSimplified {
+    pub title: String,
+    pub body: String,
+}
+
 use super::schema::posts;
 
 #[derive(Insertable)]

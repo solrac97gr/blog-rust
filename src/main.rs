@@ -15,11 +15,20 @@ fn main() {
         .execute(connection)
         .expect("Error saving new post");
 
+    diesel::update(posts.filter(id.eq(2)))
+        .set(title.eq("Nuevo título"))
+        .execute(connection)
+        .expect("Error en el update");
+
+    let updated_post = posts
+        .filter(id.eq(2))
+        .first::<Post>(connection)
+        .expect("Error al obtener el post actualizado");
+
+    println!("Updated post: {:?}", updated_post.title);
+
     let results = posts
-        .select(Post::as_select())
-        .limit(1)
-        .order(id)
-        // Get not empty body posts
+        .select(Post::as_select()) // Get not empty body posts
         .filter(body.is_not(""))
         .load(connection)
         .expect("Error loading posts");

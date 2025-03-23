@@ -1,38 +1,21 @@
-use self::models::*;
+use self::posts::*;
 use blog_rust::*;
-use diesel::prelude::*;
 
 fn main() {
-    use self::schema::posts::dsl::*;
     let connection = &mut establish_connection();
 
-    diesel::insert_into(posts)
-        .values(NewPost {
-            title: "Hello, world! 2",
-            body: "This is my second post!",
-            slug: "hello-world-2",
-        })
-        .execute(connection)
-        .expect("Error saving new post");
+    create_post(
+        "Hello, world!",
+        "This is my first post!",
+        "hello-world",
+        connection,
+    );
 
-    diesel::update(posts.filter(id.eq(2)))
-        .set(title.eq("Nuevo título"))
-        .execute(connection)
-        .expect("Error en el update");
-
-    let updated_post = posts
-        .filter(id.eq(2))
-        .first::<Post>(connection)
-        .expect("Error al obtener el post actualizado");
+    let updated_post = update_post(2, "Hello, world! 2", "This is my second post!", connection);
 
     println!("Updated post: {:?}", updated_post.title);
 
-    let results = posts
-        .select(Post::as_select()) // Get not empty body posts
-        .filter(body.is_not(""))
-        .load(connection)
-        .expect("Error loading posts");
-
+    let results = get_posts(connection);
     println!("Displaying {} posts", results.len());
     for post in results {
         println!("{}", post.title);

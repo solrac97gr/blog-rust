@@ -1,4 +1,5 @@
 pub mod models;
+pub mod posts;
 pub mod schema;
 
 use diesel::prelude::*;

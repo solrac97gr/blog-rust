@@ -7,7 +7,7 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use dotenvy::dotenv;
 use std::env;
 
-type DbPool = Pool<ConnectionManager<SqliteConnection>>;
+pub type DbPool = Pool<ConnectionManager<SqliteConnection>>;
 
 pub fn establish_connection_pool() -> DbPool {
     dotenv().ok();

@@ -274,6 +274,8 @@ dependencies = [
  "diesel",
  "dotenvy",
  "libsqlite3-sys",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

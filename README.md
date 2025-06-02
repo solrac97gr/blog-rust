@@ -1,40 +1,92 @@
-# Blog Rust
+# Blog Rust - Hexagonal Architecture
 
-A modern blog application built with Rust using clean architecture principles. This project demonstrates the implementation of a web API with Actix-Web, Diesel ORM, and SQLite database.
+A modern blog application built with Rust implementing **Hexagonal Architecture** (Ports and Adapters pattern). This project demonstrates clean architecture principles, dependency inversion, and separation of concerns in a production-ready web API.
 
 ## 🚀 Features
 
 - **Complete CRUD API** for blog post management
-  - Create new posts
+  - Create new posts with validation
   - Read all posts or get specific post by ID
   - Update existing posts
-  - Delete posts
-- **Clean Architecture** implementation (Domain, Application, Infrastructure)
+  - Delete posts with proper error handling
+- **Hexagonal Architecture** implementation (Domain, Application, Infrastructure)
+- **Domain-Driven Design** with rich domain entities
+- **Dependency Injection** with trait-based repositories
+- **Async/Await** support throughout the application
 - **SQLite database** with Diesel ORM
 - **Connection pooling** with R2D2
 - **Database migrations** support
 - **JSON API** with proper HTTP status codes
-- **Error handling** with meaningful error messages
+- **Comprehensive error handling** with meaningful error messages
 - **Web server** with Actix-Web framework
 
-## 🏗️ Architecture
+## 🏗️ Hexagonal Architecture
 
-This project follows Clean Architecture principles with the following layers:
+This project implements **Hexagonal Architecture** (also known as Ports and Adapters) which provides:
+
+- **Domain isolation**: Core business logic independent of external concerns
+- **Dependency inversion**: Infrastructure depends on domain, not vice versa
+- **Testability**: Easy to mock and test each layer independently
+- **Flexibility**: Easy to swap implementations (e.g., different databases)
+
+### Architecture Layers
 
 ```
 src/
-├── domain/           # Business logic and entities
-│   ├── entities/     # Domain entities
-│   └── ports/        # Repository interfaces
-├── application/      # Application use cases
-│   └── use_cases/    # Business use cases
-├── infrastructure/   # External concerns
-│   ├── adapters/     # Adapters for external services
-│   └── drivers/      # Database drivers and external tools
-├── models.rs         # Database models
-├── schema.rs         # Database schema
-└── main.rs          # Application entry point
+├── domain/              # 🔵 CORE: Business logic (innermost layer)
+│   ├── entities/        # Domain entities (Post)
+│   │   ├── mod.rs
+│   │   └── post.rs     # Post entity with business rules
+│   └── ports/          # Interfaces/Contracts (Repository traits)
+│       ├── mod.rs
+│       └── post_repository.rs  # PostRepository trait
+├── application/         # 🟡 APPLICATION: Use cases
+│   ├── mod.rs
+│   └── use_cases/
+│       ├── mod.rs
+│       └── post_service.rs    # Business use cases orchestration
+├── infrastructure/      # 🔴 EXTERNAL: Adapters (outermost layer)
+│   ├── mod.rs
+│   ├── database/        # Database connection utilities
+│   │   ├── mod.rs
+│   │   └── connection.rs
+│   ├── persistence/     # Database adapters
+│   │   ├── mod.rs
+│   │   ├── models.rs    # ORM models (Diesel)
+│   │   └── sqlite_post_repository.rs  # Repository implementation
+│   └── web/            # HTTP adapters
+│       ├── mod.rs
+│       ├── handlers/    # HTTP request handlers
+│       │   ├── mod.rs
+│       │   └── post_handler.rs
+│       └── models/      # DTOs for HTTP
+│           ├── mod.rs
+│           └── post_dto.rs
+├── schema.rs           # Database schema (Diesel generated)
+├── lib.rs             # Module exports
+└── main.rs            # Application bootstrap and DI container
 ```
+
+### Dependency Flow
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   HTTP Client   │───▶│   Web Handler   │───▶│  Post Service   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                                        │
+                                                        ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│    Database     │◀───│  SQLite Repo    │◀───│ Repository Port │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### Key Design Principles
+
+- **Domain entities** contain business logic and validation
+- **Ports** define contracts (interfaces) that the domain needs
+- **Adapters** implement these contracts for specific technologies
+- **Application services** orchestrate use cases
+- **Dependency injection** at the composition root (main.rs)
 
 ## 📋 Prerequisites
 
@@ -222,10 +274,25 @@ diesel migration revert
 
 ### Code Structure
 
-- **Models**: Database models are defined in `src/models.rs`
-- **Schema**: Auto-generated database schema in `src/schema.rs`
-- **Posts**: Post-related operations in `src/posts.rs`
-- **Main**: Application entry point and server configuration
+- **Domain Layer**: 
+  - `domain/entities/post.rs`: Post entity with business validation
+  - `domain/ports/post_repository.rs`: Repository interface (port)
+- **Application Layer**:
+  - `application/use_cases/post_service.rs`: Business use cases orchestration
+- **Infrastructure Layer**:
+  - `infrastructure/persistence/sqlite_post_repository.rs`: Repository implementation
+  - `infrastructure/web/handlers/post_handler.rs`: HTTP request handlers
+  - `infrastructure/web/models/post_dto.rs`: Data Transfer Objects
+  - `infrastructure/database/connection.rs`: Database connection setup
+- **Bootstrap**: `main.rs` - Dependency injection and application startup
+
+### Benefits of This Architecture
+
+1. **Testability**: Easy to unit test each layer in isolation
+2. **Maintainability**: Clear separation of concerns
+3. **Flexibility**: Easy to swap database or web framework
+4. **Domain Focus**: Business logic is protected from external changes
+5. **SOLID Principles**: Especially Dependency Inversion Principle
 
 ## 📦 Dependencies
 
@@ -234,6 +301,9 @@ diesel migration revert
 - **dotenvy**: Environment variable loading
 - **libsqlite3-sys**: SQLite bindings
 - **r2d2**: Connection pooling
+- **async-trait**: Async traits support
+- **tokio**: Async runtime
+- **serde**: Serialization/deserialization
 
 ## 🏃‍♂️ Getting Started (Quick Start)
 
@@ -250,11 +320,30 @@ diesel migration revert
 
 ## 📝 Project Status
 
-This project is part of a Platzi Rust course and serves as a learning exercise for:
-- Clean Architecture in Rust
-- Web API development with Actix-Web
-- Database integration with Diesel ORM
+This project demonstrates advanced Rust concepts and architectural patterns:
+
+**Architecture Patterns:**
+- ✅ Hexagonal Architecture (Ports and Adapters)
+- ✅ Domain-Driven Design principles
+- ✅ Dependency Injection
+- ✅ Repository Pattern
+- ✅ Clean Architecture layers
+
+**Rust Features:**
+- ✅ Async/await programming
+- ✅ Trait objects and dynamic dispatch
+- ✅ Error handling with Result types
+- ✅ Ownership and borrowing
+- ✅ Module system and visibility
+
+**Learning Objectives:**
+- Understanding clean architecture in Rust
+- Implementing domain-driven design
+- Building async web APIs
+- Database integration with ORM
 - Modern Rust development practices
+
+This is an educational project part of a Platzi Rust course, showcasing production-ready patterns and practices.
 
 ## 🤝 Contributing
 

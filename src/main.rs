@@ -1,145 +1,89 @@
-use self::posts::*;
-use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web, put, delete, Result};
-use blog_rust::{*, DbPool};
-use crate::models::{CreatePostRequest, UpdatePostRequest};
+use actix_web::{web, App, HttpResponse, HttpServer, Responder, get, Result};
+use blog_rust::application::PostService;
+use blog_rust::infrastructure::{establish_connection_pool, SqlitePostRepository, PostHandler};
 use serde_json::json;
+use std::sync::Arc;
 
 #[get("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello world!")
 }
 
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
+#[get("/health")]
+async fn health_check() -> impl Responder {
+    HttpResponse::Ok().json(json!({
+        "status": "healthy",
+        "service": "blog-rust-hexagonal"
+    }))
 }
 
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
+// Wrapper functions to handle the handler method calls
+async fn get_all_posts_handler(
+    handler: web::Data<PostHandler>
+) -> Result<HttpResponse> {
+    handler.get_all_posts().await
 }
 
-// CRUD Handlers
-#[get("/posts")]
-async fn get_all_posts(pool: web::Data<DbPool>) -> Result<HttpResponse> {
-    let post_repo = new_post_repository();
-    
-    let posts = run_with_connection(&pool, |conn| {
-        post_repo.get_posts(conn)
-    });
-    
-    Ok(HttpResponse::Ok().json(posts))
-}
-
-#[get("/posts/{id}")]
-async fn get_post_by_id(
+async fn get_post_by_id_handler(
     path: web::Path<i32>,
-    pool: web::Data<DbPool>
+    handler: web::Data<PostHandler>
 ) -> Result<HttpResponse> {
-    let post_id = path.into_inner();
-    let post_repo = new_post_repository();
-    
-    let post = run_with_connection(&pool, |conn| {
-        post_repo.get_post_by_id(post_id, conn)
-    });
-    
-    match post {
-        Some(post) => Ok(HttpResponse::Ok().json(post)),
-        None => Ok(HttpResponse::NotFound().json(json!({
-            "error": "Post not found"
-        })))
-    }
+    handler.get_post_by_id(path).await
 }
 
-#[post("/posts")]
-async fn create_post(
-    post_data: web::Json<CreatePostRequest>,
-    pool: web::Data<DbPool>
+async fn create_post_handler(
+    post_data: web::Json<blog_rust::infrastructure::CreatePostRequest>,
+    handler: web::Data<PostHandler>
 ) -> Result<HttpResponse> {
-    let post_repo = new_post_repository();
-    
-    let new_post = run_with_connection(&pool, |conn| {
-        post_repo.create_post(
-            &post_data.title,
-            &post_data.body,
-            &post_data.slug,
-            conn
-        )
-    });
-    
-    Ok(HttpResponse::Created().json(new_post))
+    handler.create_post(post_data).await
 }
 
-#[put("/posts/{id}")]
-async fn update_post(
+async fn update_post_handler(
     path: web::Path<i32>,
-    post_data: web::Json<UpdatePostRequest>,
-    pool: web::Data<DbPool>
+    post_data: web::Json<blog_rust::infrastructure::UpdatePostRequest>,
+    handler: web::Data<PostHandler>
 ) -> Result<HttpResponse> {
-    let post_id = path.into_inner();
-    let post_repo = new_post_repository();
-    
-    // Check if post exists first
-    let existing_post = run_with_connection(&pool, |conn| {
-        post_repo.get_post_by_id(post_id, conn)
-    });
-    
-    if existing_post.is_none() {
-        return Ok(HttpResponse::NotFound().json(json!({
-            "error": "Post not found"
-        })));
-    }
-    
-    let updated_post = run_with_connection(&pool, |conn| {
-        post_repo.update_post(
-            post_id,
-            &post_data.title,
-            &post_data.body,
-            conn
-        )
-    });
-    
-    Ok(HttpResponse::Ok().json(updated_post))
+    handler.update_post(path, post_data).await
 }
 
-#[delete("/posts/{id}")]
-async fn delete_post(
+async fn delete_post_handler(
     path: web::Path<i32>,
-    pool: web::Data<DbPool>
+    handler: web::Data<PostHandler>
 ) -> Result<HttpResponse> {
-    let post_id = path.into_inner();
-    let post_repo = new_post_repository();
-    
-    let deleted = run_with_connection(&pool, |conn| {
-        post_repo.delete_post(post_id, conn)
-    });
-    
-    if deleted {
-        Ok(HttpResponse::Ok().json(json!({
-            "message": "Post deleted successfully"
-        })))
-    } else {
-        Ok(HttpResponse::NotFound().json(json!({
-            "error": "Post not found"
-        })))
-    }
+    handler.delete_post(path).await
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Get a connection pool
+    println!("🚀 Starting Blog Rust Server with Hexagonal Architecture...");
+
+    // Infrastructure Layer: Database connection
     let pool = establish_connection_pool();
+    let pool_arc = Arc::new(pool);
+
+    // Infrastructure Layer: Repository implementation
+    let post_repository = SqlitePostRepository::new(Arc::clone(&pool_arc));
+    let post_repository_arc: Arc<dyn blog_rust::domain::PostRepository> = Arc::new(post_repository);
+
+    // Application Layer: Service/Use Cases
+    let post_service = Arc::new(PostService::new(post_repository_arc));
+
+    // Infrastructure Layer: Web handlers
+    let post_handler = PostHandler::new(post_service);
+
+    println!("✅ Dependencies injected successfully");
+    println!("🌐 Server starting on http://127.0.0.1:8080");
 
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(pool.clone())) // Pass pool to the app state
+            .app_data(web::Data::new(post_handler.clone()))
             .service(hello)
-            .service(echo)
-            .route("/hey", web::get().to(manual_hello))
-            .service(get_all_posts)
-            .service(get_post_by_id)
-            .service(create_post)
-            .service(update_post)
-            .service(delete_post)
+            .service(health_check)
+            .route("/posts", web::get().to(get_all_posts_handler))
+            .route("/posts/{id}", web::get().to(get_post_by_id_handler))
+            .route("/posts", web::post().to(create_post_handler))
+            .route("/posts/{id}", web::put().to(update_post_handler))
+            .route("/posts/{id}", web::delete().to(delete_post_handler))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
